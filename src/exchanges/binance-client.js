@@ -74,6 +74,12 @@ class BinanceClient extends EventEmitter {
     this._subscribe(market, this._candleSubs);
   }
 
+  subscribeCandlesCombined(markets) {
+    markets.forEach(market => {
+      this._subscribe(market, this._candleSubs);
+    });
+  }
+
   unsubscribeCandles(market) {
     this._unsubscribe(market, this._candleSubs);
   }
@@ -160,7 +166,9 @@ class BinanceClient extends EventEmitter {
           p => p + (this.useAggTrades ? "@aggTrade" : "@trade")
         ),
         Array.from(this._candleSubs.keys()).map(
-          p => `${p}@kline_${candlePeriod(this.candlePeriod)}`
+          p => {
+            return `${p.split('_')[0]}@kline_${candlePeriod('_' + p.split('_')[1])}`;
+          }
         ),
         Array.from(this._level2SnapshotSubs.keys()).map(p => p + "@depth20"),
         Array.from(this._level2UpdateSubs.keys()).map(p => p + "@depth")
@@ -170,7 +178,6 @@ class BinanceClient extends EventEmitter {
       }
 
       let wssPath = "wss://stream.binance.com:9443/stream?streams=" + streams.join("/");
-
       this._wss = new SmartWss(wssPath);
       this._wss.on("error", this._onError.bind(this));
       this._wss.on("connecting", this._onConnecting.bind(this));
@@ -251,11 +258,12 @@ class BinanceClient extends EventEmitter {
 
     // candle
     if (msg.data.e === "kline") {
-      let remote_id = msg.data.s.toLowerCase();
+      let remote_id = msg.data.s.toLowerCase() + '_' + msg.data.k.i;
       let market = this._candleSubs.get(remote_id);
       if (!market) return;
 
       let candle = this._constructCandle(msg, market);
+
       this.emit("candle", candle, market);
       return;
     }
